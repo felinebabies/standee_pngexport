@@ -34,7 +34,7 @@ let statusTone: 'neutral' | 'success' | 'error' = 'neutral';
 app.innerHTML = `
   <div class="app-shell">
     <header class="topbar">
-      <div class="brand"><span class="brand-mark">SF</span><span><b>Standee Forge</b><small>TRANSPARENT PNG COMPOSITOR</small></span></div>
+      <div class="brand"><span class="brand-mark">VQ</span><span><b>VQStandeeForge</b><small>TRANSPARENT PNG COMPOSITOR</small></span></div>
       <nav class="toolbar" aria-label="プロジェクト操作">
         <button id="new-project" class="button ghost">新規</button>
         <button id="load-project" class="button ghost">読込</button>

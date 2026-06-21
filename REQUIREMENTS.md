@@ -1,5 +1,6 @@
-# 立ち絵PNG組み合わせ・一括書き出しSPA 要件定義
+# VQStandeeForge 要件定義
 
+- プロダクト名: VQStandeeForge
 - 文書版: 1.0
 - 作成日: 2026-06-22
 - 対象: MVP

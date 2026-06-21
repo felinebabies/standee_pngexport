@@ -1,4 +1,4 @@
-# Standee Forge
+# VQStandeeForge
 
 分類別に手動出力した透過PNGをブラウザー内で合成し、宴4向けの全パターンをZIPへ書き出すデスクトップSPAです。画像データをサーバーへ送信せず、`.clip`やPSDは扱いません。
 
