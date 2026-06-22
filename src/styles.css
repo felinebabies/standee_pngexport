@@ -20,7 +20,7 @@
 html, body, #app { width: 100%; height: 100%; margin: 0; overflow: hidden; }
 button, input, select { font: inherit; }
 button { color: inherit; }
-button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
 .app-shell { height: 100%; display: grid; grid-template-rows: 64px minmax(0, 1fr) 38px; background: #10110f; }
 .topbar { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 0 18px; border-bottom: 1px solid var(--line); background: #131512; }
@@ -36,6 +36,18 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focu
 .button.ghost { background: transparent; }
 .button.accent { border-color: var(--accent); background: var(--accent); color: #111; font-weight: 700; }
 .danger { color: var(--danger); }
+.debug-menu { position: relative; }
+.debug-menu > summary { display: flex; align-items: center; gap: 8px; list-style: none; user-select: none; }
+.debug-menu > summary::-webkit-details-marker { display: none; }
+.debug-menu > summary::after { content: ''; width: 5px; height: 5px; border-right: 1px solid currentColor; border-bottom: 1px solid currentColor; transform: rotate(45deg) translateY(-2px); transition: transform .15s; }
+.debug-menu[open] > summary { border-color: #73776b; background: #30342c; }
+.debug-menu[open] > summary::after { transform: rotate(225deg) translate(-1px, -1px); }
+.debug-menu-popover { position: absolute; z-index: 20; top: calc(100% + 8px); right: 0; width: 250px; padding: 6px; border: 1px solid #45493f; border-radius: 3px; background: #191b17; box-shadow: 0 18px 50px rgba(0,0,0,.65); }
+.debug-menu-item { width: 100%; padding: 10px 11px; border: 0; border-left: 2px solid transparent; color: var(--ink); background: transparent; text-align: left; cursor: pointer; }
+.debug-menu-item:hover, .debug-menu-item:focus-visible { border-left-color: var(--accent); background: var(--accent-dark); }
+.debug-menu-item b, .debug-menu-item small { display: block; }
+.debug-menu-item b { font-size: 11px; }
+.debug-menu-item small { margin-top: 5px; color: var(--muted); font-size: 9px; }
 
 .workspace { min-height: 0; display: grid; grid-template-columns: 290px minmax(420px, 1fr) 340px; }
 .panel { min-width: 0; background: var(--panel); overflow: hidden; }

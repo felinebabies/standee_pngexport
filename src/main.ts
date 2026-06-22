@@ -41,7 +41,15 @@ app.innerHTML = `
         <button id="new-project" class="button ghost">新規</button>
         <button id="load-project" class="button ghost">読込</button>
         <button id="save-project" class="button ghost">プロジェクト保存</button>
-        <button id="export-logical-json" class="button ghost" title="画像を含まない論理パターン構成を保存">論理構成JSON</button>
+        <details id="debug-menu" class="debug-menu">
+          <summary class="button ghost">デバッグ用</summary>
+          <div class="debug-menu-popover">
+            <button id="export-logical-json" type="button" class="debug-menu-item">
+              <b>パターン組み合わせ数リスト</b>
+              <small>画像なしの診断JSONを書き出す</small>
+            </button>
+          </div>
+        </details>
         <button id="add-png" class="button">PNG登録</button>
         <button id="export-zip" class="button accent">ZIP書き出し</button>
       </nav>
@@ -465,13 +473,13 @@ async function saveProjectFile(): Promise<void> {
   } catch (error) { setStatus(`保存に失敗しました: ${messageOf(error)}`, 'error'); }
 }
 
-function saveLogicalPatternReport(): void {
+function savePatternCombinationCountList(): void {
   try {
     const report = createLogicalPatternReport(project);
-    const fileName = `${sanitizeSegment(project.character)}_logical_patterns.json`;
+    const fileName = `${sanitizeSegment(project.character)}_パターン組み合わせ数リスト.json`;
     download(new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' }), fileName);
-    setStatus(`論理パターン構成JSONを書き出しました（最終出力 ${report.summary.final.toLocaleString()}件）。`, 'success');
-  } catch (error) { setStatus(`論理パターン構成JSONの書き出しに失敗しました: ${messageOf(error)}`, 'error'); }
+    setStatus(`パターン組み合わせ数リストを書き出しました（最終出力 ${report.summary.final.toLocaleString()}件）。`, 'success');
+  } catch (error) { setStatus(`パターン組み合わせ数リストの書き出しに失敗しました: ${messageOf(error)}`, 'error'); }
 }
 
 async function loadProjectFile(file: File): Promise<void> {
@@ -510,7 +518,8 @@ required('new-project').addEventListener('click', () => {
 });
 required('load-project').addEventListener('click', () => projectInput.click());
 required('save-project').addEventListener('click', () => void saveProjectFile());
-required('export-logical-json').addEventListener('click', saveLogicalPatternReport);
+const debugMenu = required<HTMLDetailsElement>('debug-menu');
+required('export-logical-json').addEventListener('click', () => { debugMenu.open = false; savePatternCombinationCountList(); });
 required('add-png').addEventListener('click', () => pngInput.click());
 required('export-zip').addEventListener('click', () => void startExport());
 required('add-group').addEventListener('click', () => {
@@ -529,6 +538,9 @@ document.querySelectorAll<HTMLButtonElement>('[data-zoom]').forEach((control) =>
   else { const current = typeof zoom === 'number' ? zoom : 1; zoom = Math.min(4, Math.max(0.1, current * (value === 'in' ? 1.25 : 0.8))); }
   document.querySelectorAll('[data-zoom]').forEach((item) => item.classList.toggle('active', item === control)); applyZoom();
 }));
+document.addEventListener('click', (event) => {
+  if (debugMenu.open && event.target instanceof Node && !debugMenu.contains(event.target)) debugMenu.open = false;
+});
 
 function navigateCombination(delta: number): void {
   const list = combinations(); if (!list.length) return;
