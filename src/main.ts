@@ -2,10 +2,12 @@ import './styles.css';
 import { combinationCounts, combinationLabel, enabledGroups, isExcluded, iterateCombinations, validateProject } from './combinations';
 import { exportProjectZip, type ExportProgress } from './exporter';
 import { drawCombination, hashBlob, inspectPng, releasePartBitmap } from './image';
+import { createLogicalPatternReport } from './logical-pattern-report';
 import {
   CATEGORY_LABELS,
   createProject,
   normalizedOutputPath,
+  sanitizeSegment,
   uid,
   type Combination,
   type ExclusionRule,
@@ -39,6 +41,7 @@ app.innerHTML = `
         <button id="new-project" class="button ghost">新規</button>
         <button id="load-project" class="button ghost">読込</button>
         <button id="save-project" class="button ghost">プロジェクト保存</button>
+        <button id="export-logical-json" class="button ghost" title="画像を含まない論理パターン構成を保存">論理構成JSON</button>
         <button id="add-png" class="button">PNG登録</button>
         <button id="export-zip" class="button accent">ZIP書き出し</button>
       </nav>
@@ -462,6 +465,15 @@ async function saveProjectFile(): Promise<void> {
   } catch (error) { setStatus(`保存に失敗しました: ${messageOf(error)}`, 'error'); }
 }
 
+function saveLogicalPatternReport(): void {
+  try {
+    const report = createLogicalPatternReport(project);
+    const fileName = `${sanitizeSegment(project.character)}_logical_patterns.json`;
+    download(new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' }), fileName);
+    setStatus(`論理パターン構成JSONを書き出しました（最終出力 ${report.summary.final.toLocaleString()}件）。`, 'success');
+  } catch (error) { setStatus(`論理パターン構成JSONの書き出しに失敗しました: ${messageOf(error)}`, 'error'); }
+}
+
 async function loadProjectFile(file: File): Promise<void> {
   try {
     const parsed = JSON.parse(await file.text()) as Parameters<typeof deserializeProject>[0];
@@ -498,6 +510,7 @@ required('new-project').addEventListener('click', () => {
 });
 required('load-project').addEventListener('click', () => projectInput.click());
 required('save-project').addEventListener('click', () => void saveProjectFile());
+required('export-logical-json').addEventListener('click', saveLogicalPatternReport);
 required('add-png').addEventListener('click', () => pngInput.click());
 required('export-zip').addEventListener('click', () => void startExport());
 required('add-group').addEventListener('click', () => {
