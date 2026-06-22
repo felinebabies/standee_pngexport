@@ -1,4 +1,4 @@
-import { FORMAT_VERSION, type ProjectFile, type StandeeProject } from './model';
+import { FORMAT_VERSION, migrateProject, type ProjectFile, type StandeeProject } from './model';
 
 function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -21,6 +21,7 @@ function dataUrlToBlob(dataUrl: string): Blob {
 export async function serializeProject(project: StandeeProject): Promise<ProjectFile> {
   return {
     ...project,
+    version: FORMAT_VERSION,
     groups: await Promise.all(project.groups.map(async (group) => ({
       ...group,
       parts: await Promise.all(group.parts.map(async (part) => ({
@@ -33,12 +34,11 @@ export async function serializeProject(project: StandeeProject): Promise<Project
 }
 
 export function deserializeProject(file: ProjectFile): StandeeProject {
-  if (file.version !== FORMAT_VERSION) throw new Error(`未対応のプロジェクト形式です（version: ${file.version}）。`);
-  return {
+  return migrateProject({
     ...file,
     groups: file.groups.map((group) => ({
       ...group,
       parts: group.parts.map(({ imageBase64, ...part }) => ({ ...part, image: dataUrlToBlob(imageBase64) })),
     })),
-  };
+  });
 }

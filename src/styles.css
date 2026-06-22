@@ -97,6 +97,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focu
 .field input:focus, .field select:focus { border-color: var(--accent); }
 .toggle-row { padding: 8px 0; color: #c4c6be; font-size: 11px; }
 .toggle-row input { accent-color: var(--accent); }
+.setting-label { margin: 14px 0 5px; color: #c4c6be; font-size: 10px; }
+.checkbox-list { display: grid; gap: 7px; margin: 8px 0 13px; color: #c4c6be; font-size: 10px; }
+.checkbox-list input { accent-color: var(--accent); }
 .action-row { display: flex; gap: 6px; margin-top: 11px; }
 .muted { color: var(--muted); font-size: 10px; line-height: 1.6; }
 .part-details { display: grid; grid-template-columns: 65px minmax(0, 1fr); gap: 6px 8px; margin: 12px 0; font-size: 10px; }

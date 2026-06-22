@@ -18,6 +18,20 @@ export function isExcluded(project: StandeeProject, selections: Record<string, s
   return project.exclusions.some((rule) => selected.has(rule.partA) && selected.has(rule.partB));
 }
 
+function collapsedCombinationKey(
+  project: StandeeProject,
+  groups: ReturnType<typeof enabledGroups>,
+  selections: Record<string, string | null>,
+): string {
+  const selectedIds = new Set(Object.values(selections).filter((id): id is string => id !== null));
+  const collapsedGroupIds = new Set(
+    project.groups.flatMap((group) => group.parts)
+      .filter((part) => selectedIds.has(part.id))
+      .flatMap((part) => part.collapsedGroupIds ?? []),
+  );
+  return JSON.stringify(groups.map((group) => collapsedGroupIds.has(group.id) ? null : selections[group.id] ?? null));
+}
+
 export function* iterateCombinations(project: StandeeProject): Generator<Combination> {
   const groups = enabledGroups(project);
   if (groups.length === 0) return;
@@ -29,9 +43,13 @@ export function* iterateCombinations(project: StandeeProject): Generator<Combina
   if (choices.some((items) => items.length === 0)) return;
 
   const selected: Record<string, string | null> = {};
+  const yieldedKeys = new Set<string>();
   function* visit(depth: number): Generator<Combination> {
     if (depth === groups.length) {
       if (!isExcluded(project, selected)) {
+        const key = collapsedCombinationKey(project, groups, selected);
+        if (yieldedKeys.has(key)) return;
+        yieldedKeys.add(key);
         const values = groups.map((group) => selected[group.id] ?? 'none');
         yield { id: values.join('__'), selections: { ...selected } };
       }
@@ -48,9 +66,32 @@ export function* iterateCombinations(project: StandeeProject): Generator<Combina
 
 export function combinationCounts(project: StandeeProject) {
   const theoretical = theoreticalCount(project);
+  let allowed = 0;
+  const groups = enabledGroups(project);
+  if (groups.length > 0) {
+    const choices = groups.map((group) => {
+      const ids: Array<string | null> = group.parts.filter((part) => part.enabled).map((part) => part.id);
+      if (!group.required) ids.unshift(null);
+      return ids;
+    });
+    if (!choices.some((items) => items.length === 0)) {
+      const selected: Record<string, string | null> = {};
+      const visit = (depth: number): void => {
+        if (depth === groups.length) {
+          if (!isExcluded(project, selected)) allowed += 1;
+          return;
+        }
+        for (const partId of choices[depth]) {
+          selected[groups[depth].id] = partId;
+          visit(depth + 1);
+        }
+      };
+      visit(0);
+    }
+  }
   let final = 0;
   for (const _combination of iterateCombinations(project)) final += 1;
-  return { theoretical, excluded: theoretical - final, final };
+  return { theoretical, excluded: theoretical - allowed, deduplicated: allowed - final, final };
 }
 
 export function combinationLabel(project: StandeeProject, combination: Combination): string {
@@ -102,6 +143,13 @@ export function validateProject(project: StandeeProject): { errors: string[]; wa
   if (project.width * project.height * counts.final > 2_000_000_000) warnings.push('展開時の推定画像容量が2GBを超えます。');
   for (const rule of project.exclusions) {
     if (rule.partA === rule.partB) warnings.push('同じパーツを指定した使用禁止ペアがあります。');
+  }
+  const groupIds = new Set(project.groups.map((group) => group.id));
+  for (const part of project.groups.flatMap((group) => group.parts)) {
+    for (const groupId of part.collapsedGroupIds ?? []) {
+      if (!groupIds.has(groupId)) warnings.push(`「${part.name}」の重複抑制設定に存在しないグループがあります。`);
+      if (groupId === part.groupId) warnings.push(`「${part.name}」自身のグループは重複抑制の対象にできません。`);
+    }
   }
   return { errors, warnings };
 }

@@ -1,4 +1,4 @@
-import type { StandeeProject } from './model';
+import { migrateProject, type StandeeProject } from './model';
 
 const DB_NAME = 'standee-forge';
 const STORE = 'projects';
@@ -31,5 +31,6 @@ export async function loadLatestProject(): Promise<StandeeProject | null> {
     request.onerror = () => reject(request.error);
   });
   db.close();
-  return projects.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0] ?? null;
+  const latest = projects.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+  return latest ? migrateProject(latest) : null;
 }

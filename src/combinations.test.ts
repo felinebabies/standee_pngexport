@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { combinationCounts, combinationLabel, iterateCombinations, theoreticalCount, validateProject } from './combinations';
-import { outputFileName, sanitizeSegment, type Part, type PartGroup, type StandeeProject } from './model';
+import { FORMAT_VERSION, migrateProject, outputFileName, sanitizeSegment, type Part, type PartGroup, type StandeeProject } from './model';
 
 function part(id: string, groupId: string, name = id): Part {
   return {
@@ -43,8 +43,27 @@ describe('combination enumeration', () => {
   it('removes matching exclusion pairs from counts and iteration', () => {
     const project = fixture([group('body', true, ['b1', 'b2']), group('clothes', true, ['c1', 'c2'])]);
     project.exclusions.push({ id: 'rule', partA: 'b2', partB: 'c1' });
-    expect(combinationCounts(project)).toEqual({ theoretical: 4, excluded: 1, final: 3 });
+    expect(combinationCounts(project)).toEqual({ theoretical: 4, excluded: 1, deduplicated: 0, final: 3 });
     expect([...iterateCombinations(project)].map((item) => item.id)).not.toContain('b2__c1');
+  });
+
+  it('collapses combinations that differ only in a group hidden by the selected part', () => {
+    const project = fixture([group('body', true, ['b1', 'b2']), group('clothes', false, ['c1', 'c2'])]);
+    project.groups[1].parts[0].collapsedGroupIds = ['body'];
+
+    expect([...iterateCombinations(project)].map((item) => item.id)).toEqual([
+      'b1__none', 'b1__c1', 'b1__c2', 'b2__none', 'b2__c2',
+    ]);
+    expect(combinationCounts(project)).toEqual({ theoretical: 6, excluded: 0, deduplicated: 1, final: 5 });
+  });
+
+  it('applies exclusions before choosing the first non-duplicate combination', () => {
+    const project = fixture([group('body', true, ['b1', 'b2']), group('clothes', false, ['c1', 'c2'])]);
+    project.groups[1].parts[0].collapsedGroupIds = ['body'];
+    project.exclusions.push({ id: 'rule', partA: 'b1', partB: 'c1' });
+
+    expect([...iterateCombinations(project)].map((item) => item.id)).toContain('b2__c1');
+    expect(combinationCounts(project)).toEqual({ theoretical: 6, excluded: 1, deduplicated: 0, final: 5 });
   });
 
   it('reports an empty required group as an export error', () => {
@@ -55,7 +74,22 @@ describe('combination enumeration', () => {
   it('reports zero theoretical combinations when every group is disabled', () => {
     const project = fixture([group('body', true, ['b1'])]);
     project.groups[0].enabled = false;
-    expect(combinationCounts(project)).toEqual({ theoretical: 0, excluded: 0, final: 0 });
+    expect(combinationCounts(project)).toEqual({ theoretical: 0, excluded: 0, deduplicated: 0, final: 0 });
+  });
+});
+
+describe('project migration', () => {
+  it('loads version 1 projects with duplicate suppression disabled', () => {
+    const oldProject = fixture([group('body', true, ['b1'])]);
+    const migrated = migrateProject(oldProject);
+
+    expect(migrated.version).toBe(FORMAT_VERSION);
+    expect(migrated.groups[0].parts[0].collapsedGroupIds).toEqual([]);
+  });
+
+  it('rejects project versions newer than this application supports', () => {
+    const futureProject = fixture([]); futureProject.version = FORMAT_VERSION + 1;
+    expect(() => migrateProject(futureProject)).toThrow('未対応のプロジェクト形式');
   });
 });
 

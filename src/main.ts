@@ -245,6 +245,8 @@ function renderInspector(): void {
   }
   if (isExcluded(project, currentSelections)) {
     const warning = document.createElement('p'); warning.className = 'inline-warning'; warning.textContent = 'この組み合わせは除外規則に該当します。'; choiceSection.append(warning);
+  } else if (!combinations().some((combo) => Object.entries(combo.selections).every(([groupId, partId]) => currentSelections[groupId] === partId))) {
+    const warning = document.createElement('p'); warning.className = 'inline-warning'; warning.textContent = 'この組み合わせは重複抑制により出力対象外です。'; choiceSection.append(warning);
   }
   inspector.append(choiceSection);
 
@@ -288,6 +290,25 @@ function renderPartSettings(container: HTMLElement, group: PartGroup, part: Part
     const dt = document.createElement('dt'); dt.textContent = term; const dd = document.createElement('dd'); dd.textContent = value; details.append(dt, dd);
   }
   container.append(details);
+  const collapseHeading = document.createElement('p'); collapseHeading.className = 'setting-label'; collapseHeading.textContent = '重複時に差分をまとめるグループ';
+  const collapseHelp = document.createElement('p'); collapseHelp.className = 'muted'; collapseHelp.textContent = 'このパーツで完全に隠れるグループを指定します。対象の選択だけが異なる合成結果は1件にまとめられます。';
+  container.append(collapseHeading, collapseHelp);
+  const collapseTargets = document.createElement('div'); collapseTargets.className = 'checkbox-list';
+  for (const target of project.groups.filter((candidate) => candidate.id !== group.id)) {
+    const label = document.createElement('label');
+    const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.checked = (part.collapsedGroupIds ?? []).includes(target.id);
+    checkbox.addEventListener('change', () => {
+      const selected = new Set(part.collapsedGroupIds ?? []);
+      if (checkbox.checked) selected.add(target.id); else selected.delete(target.id);
+      part.collapsedGroupIds = [...selected];
+      touch(checkbox.checked ? `「${target.name}」の差分を重複時にまとめます。` : `「${target.name}」の重複抑制を解除しました。`);
+    });
+    label.append(checkbox, document.createTextNode(` ${target.name}`)); collapseTargets.append(label);
+  }
+  if (!collapseTargets.childElementCount) {
+    const empty = document.createElement('span'); empty.className = 'muted'; empty.textContent = '対象にできる他のグループがありません。'; collapseTargets.append(empty);
+  }
+  container.append(collapseTargets);
   const actions = document.createElement('div'); actions.className = 'action-row';
   const down = button('下へ'); down.addEventListener('click', () => movePart(group, part.id, -1));
   const up = button('上へ'); up.addEventListener('click', () => movePart(group, part.id, 1));
@@ -326,7 +347,7 @@ function renderStatus(): void {
   required<HTMLElement>('status-text').textContent = statusMessage;
   required<HTMLElement>('status-dot').className = statusTone;
   const counts = combinationCounts(project);
-  required<HTMLElement>('counts').textContent = `理論 ${counts.theoretical.toLocaleString()} － 除外 ${counts.excluded.toLocaleString()} ＝ 出力 ${counts.final.toLocaleString()}`;
+  required<HTMLElement>('counts').textContent = `理論 ${counts.theoretical.toLocaleString()} － 除外 ${counts.excluded.toLocaleString()} － 重複 ${counts.deduplicated.toLocaleString()} ＝ 出力 ${counts.final.toLocaleString()}`;
   const validation = validateProject(project);
   const summary = required<HTMLElement>('validation-summary');
   summary.className = `validation-summary ${validation.errors.length ? 'has-error' : validation.warnings.length ? 'has-warning' : 'valid'}`;
@@ -386,6 +407,9 @@ function removeGroup(group: PartGroup): void {
   for (const part of group.parts) releasePartBitmap(part.id);
   const partIds = new Set(group.parts.map((part) => part.id));
   project.groups = project.groups.filter((candidate) => candidate.id !== group.id);
+  for (const part of project.groups.flatMap((candidate) => candidate.parts)) {
+    part.collapsedGroupIds = (part.collapsedGroupIds ?? []).filter((groupId) => groupId !== group.id);
+  }
   project.exclusions = project.exclusions.filter((rule) => !partIds.has(rule.partA) && !partIds.has(rule.partB));
   selectedGroupId = project.groups[0]?.id ?? ''; selectedPartId = null; touch('グループを削除しました。');
 }
@@ -415,6 +439,7 @@ async function registerFiles(files: File[]): Promise<void> {
       const part: Part = {
         id: uid('part'), groupId: group.id, name: file.name.replace(/\.png$/i, ''), originalName: file.name,
         width: info.width, height: info.height, hash, enabled: true, hasTransparency: info.hasTransparency, image: file,
+        collapsedGroupIds: [],
       };
       group.parts.push(part); currentSelections[group.id] = part.id; selectedPartId = part.id; added += 1;
       if (duplicateName || duplicateHash) errors.push(`${file.name}: ${duplicateHash ? '同一内容' : '同一ファイル名'}の登録があります（警告）。`);

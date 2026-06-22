@@ -1,4 +1,4 @@
-export const FORMAT_VERSION = 1;
+export const FORMAT_VERSION = 2;
 
 export type StandardCategory = 'body' | 'clothes' | 'expression' | 'blink' | 'lip' | 'decoration' | 'other';
 
@@ -13,6 +13,8 @@ export interface Part {
   enabled: boolean;
   hasTransparency: boolean;
   image: Blob;
+  /** When this part is selected, differences in these groups are collapsed to one output. */
+  collapsedGroupIds?: string[];
 }
 
 export interface PartGroup {
@@ -97,6 +99,20 @@ export function createProject(): StandeeProject {
     output: { relativePath: 'Character', digits: 4 },
     createdAt: now,
     updatedAt: now,
+  };
+}
+
+export function migrateProject(project: StandeeProject): StandeeProject {
+  if (project.version < 1 || project.version > FORMAT_VERSION) {
+    throw new Error(`未対応のプロジェクト形式です（version: ${project.version}）。`);
+  }
+  return {
+    ...project,
+    version: FORMAT_VERSION,
+    groups: project.groups.map((group) => ({
+      ...group,
+      parts: group.parts.map((part) => ({ ...part, collapsedGroupIds: part.collapsedGroupIds ?? [] })),
+    })),
   };
 }
 
