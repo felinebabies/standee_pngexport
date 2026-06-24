@@ -89,14 +89,19 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .segmented button { min-height: 29px; padding: 3px 9px; border: 1px solid var(--line); border-right-width: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 10px; }
 .segmented button:last-child { border-right-width: 1px; }
 .segmented button.active { color: #111; background: var(--accent); }
-.stage { position: relative; display: flex; align-items: center; justify-content: center; min-height: 0; overflow: auto; background-color: #161716; background-image: linear-gradient(45deg, #202220 25%, transparent 25%), linear-gradient(-45deg, #202220 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #202220 75%), linear-gradient(-45deg, transparent 75%, #202220 75%); background-size: 28px 28px; background-position: 0 0, 0 14px, 14px -14px, -14px 0; }
-.stage::after { content: ''; position: absolute; inset: 16px; pointer-events: none; border: 1px solid rgba(255,255,255,.04); }
-#preview-canvas { flex: none; display: block; box-shadow: 0 20px 70px rgba(0,0,0,.6); image-rendering: auto; }
-.empty-stage { display: grid; justify-items: center; gap: 8px; color: var(--muted); text-align: center; }
+.stage { position: relative; min-height: 0; overflow: hidden; touch-action: none; overscroll-behavior: contain; cursor: default; user-select: none; background-color: #161716; background-image: linear-gradient(45deg, #202220 25%, transparent 25%), linear-gradient(-45deg, #202220 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #202220 75%), linear-gradient(-45deg, transparent 75%, #202220 75%); background-size: 28px 28px; background-position: 0 0, 0 14px, 14px -14px, -14px 0; }
+.stage.has-preview { cursor: grab; }
+.stage.panning { cursor: grabbing; }
+.stage::after { content: ''; position: absolute; z-index: 3; inset: 16px; pointer-events: none; border: 1px solid rgba(255,255,255,.04); }
+#preview-canvas { position: absolute; z-index: 1; display: block; transform: translate(-50%, -50%); box-shadow: 0 20px 70px rgba(0,0,0,.6); image-rendering: auto; pointer-events: none; }
+.empty-stage { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 8px; color: var(--muted); text-align: center; cursor: default; }
 .empty-stage[hidden], #preview-canvas[hidden] { display: none; }
 .empty-glyph { display: grid; place-items: center; width: 66px; height: 66px; margin-bottom: 7px; border: 1px solid #565a50; color: var(--accent); font-size: 35px; transform: rotate(45deg); }
 .empty-stage b { color: #d3d4ce; font-family: "Yu Mincho", serif; font-size: 18px; }
 .empty-stage span:last-child { font-size: 11px; }
+.stage-gesture-hint { position: absolute; z-index: 4; left: 26px; bottom: 22px; padding: 6px 9px; border: 1px solid rgba(255,255,255,.08); color: #aeb1a8; background: rgba(15,16,14,.76); backdrop-filter: blur(5px); font: 9px Consolas, monospace; pointer-events: none; }
+.stage-center-button { position: absolute; z-index: 4; right: 26px; bottom: 22px; min-height: 27px; padding: 4px 9px; border: 1px solid rgba(255,255,255,.12); border-radius: 2px; color: #c8cac2; background: rgba(15,16,14,.82); backdrop-filter: blur(5px); cursor: pointer; font-size: 9px; }
+.stage-center-button:hover { border-color: var(--accent); color: var(--accent); }
 .preview-nav { display: flex; align-items: center; justify-content: center; gap: 18px; border-top: 1px solid var(--line); background: #151714; }
 .preview-nav span { min-width: 80px; color: #b6b8b0; text-align: center; font: 11px Consolas, monospace; }
 

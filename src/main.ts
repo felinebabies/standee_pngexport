@@ -27,11 +27,19 @@ let selectedPartId: string | null = null;
 let currentSelections: Record<string, string | null> = {};
 let currentCombinationIndex = 0;
 let zoom: 'fit' | 'actual' | number = 'fit';
+let panX = 0;
+let panY = 0;
+let activePanPointerId: number | null = null;
+let lastPanPointerX = 0;
+let lastPanPointerY = 0;
 let saveTimer: number | undefined;
 let exportController: AbortController | null = null;
 let exportProgress: ExportProgress | null = null;
 let statusMessage = 'PNGを登録してプロジェクトを開始してください。';
 let statusTone: 'neutral' | 'success' | 'error' = 'neutral';
+
+const MIN_ZOOM = 0.05;
+const MAX_ZOOM = 16;
 
 app.innerHTML = `
   <div class="app-shell">
@@ -73,6 +81,8 @@ app.innerHTML = `
         <div id="stage" class="stage" tabindex="0" aria-label="合成プレビュー">
           <canvas id="preview-canvas"></canvas>
           <div id="empty-stage" class="empty-stage"><span class="empty-glyph">＋</span><b>透過PNGを登録</b><span>左のグループを選び、ファイルをドロップしてください</span></div>
+          <div id="stage-gesture-hint" class="stage-gesture-hint">ドラッグ / ホイールで移動 · Ctrl＋ホイールで拡大</div>
+          <button id="center-preview" type="button" class="stage-center-button" title="プレビューを中央へ戻す">中央へ</button>
         </div>
         <div class="preview-nav"><button id="prev-combination" class="button ghost">← 前へ</button><span id="combination-position">0 / 0</span><button id="next-combination" class="button ghost">次へ →</button></div>
       </section>
@@ -371,6 +381,9 @@ async function renderPreview(): Promise<void> {
   const hasCanvas = project.width > 0 && project.height > 0;
   emptyStage.hidden = hasCanvas;
   canvas.hidden = !hasCanvas;
+  required<HTMLElement>('stage-gesture-hint').hidden = !hasCanvas;
+  required<HTMLButtonElement>('center-preview').hidden = !hasCanvas;
+  stage.classList.toggle('has-preview', hasCanvas);
   required<HTMLElement>('canvas-size').textContent = hasCanvas ? `${project.width} × ${project.height}px` : '未設定';
   if (!hasCanvas) { required<HTMLElement>('combination-name').textContent = 'プレビューなし'; return; }
   canvas.width = project.width; canvas.height = project.height;
@@ -386,14 +399,48 @@ async function renderPreview(): Promise<void> {
 
 function applyZoom(): void {
   if (!project.width || !project.height) return;
-  const availableWidth = Math.max(100, stage.clientWidth - 80);
-  const availableHeight = Math.max(100, stage.clientHeight - 80);
-  let scale = 1;
-  if (zoom === 'fit') scale = Math.min(availableWidth / project.width, availableHeight / project.height, 1);
-  else if (zoom === 'actual') scale = 1;
-  else scale = zoom;
+  const scale = currentScale();
   canvas.style.width = `${project.width * scale}px`;
   canvas.style.height = `${project.height * scale}px`;
+  canvas.style.left = `calc(50% + ${panX}px)`;
+  canvas.style.top = `calc(50% + ${panY}px)`;
+  required<HTMLElement>('canvas-size').textContent = `${project.width} × ${project.height}px · ${Math.round(scale * 100)}%`;
+  updateZoomControls();
+}
+
+function currentScale(): number {
+  if (typeof zoom === 'number') return zoom;
+  if (zoom === 'actual') return 1;
+  const availableWidth = Math.max(100, stage.clientWidth - 80);
+  const availableHeight = Math.max(100, stage.clientHeight - 80);
+  return Math.min(availableWidth / project.width, availableHeight / project.height, 1);
+}
+
+function updateZoomControls(): void {
+  document.querySelectorAll<HTMLButtonElement>('[data-zoom]').forEach((control) => {
+    control.classList.toggle('active', control.dataset.zoom === zoom);
+  });
+}
+
+function resetPan(): void {
+  panX = 0;
+  panY = 0;
+}
+
+function resetViewport(): void {
+  zoom = 'fit';
+  resetPan();
+  applyZoom();
+}
+
+function setNumericZoom(nextScale: number, focalX = 0, focalY = 0): void {
+  const previousScale = currentScale();
+  const clampedScale = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, nextScale));
+  const ratio = clampedScale / previousScale;
+  panX = focalX - (focalX - panX) * ratio;
+  panY = focalY - (focalY - panY) * ratio;
+  zoom = clampedScale;
+  applyZoom();
 }
 
 function combinationIndexForSelections(): number {
@@ -440,7 +487,7 @@ async function registerFiles(files: File[]): Promise<void> {
   for (const file of files) {
     try {
       const info = await inspectPng(file);
-      if (!project.width) { project.width = info.width; project.height = info.height; }
+      if (!project.width) { project.width = info.width; project.height = info.height; resetViewport(); }
       if (info.width !== project.width || info.height !== project.height) {
         throw new Error(`${info.width}×${info.height}px（必要: ${project.width}×${project.height}px）`);
       }
@@ -486,6 +533,7 @@ async function loadProjectFile(file: File): Promise<void> {
   try {
     const parsed = JSON.parse(await file.text()) as Parameters<typeof deserializeProject>[0];
     project = deserializeProject(parsed); selectedGroupId = project.groups[0]?.id ?? ''; selectedPartId = null; currentSelections = {}; currentCombinationIndex = 0;
+    resetViewport();
     touch('プロジェクトを読み込みました。', 'success');
   } catch (error) { setStatus(`プロジェクトを読み込めません: ${messageOf(error)}`, 'error'); }
 }
@@ -514,7 +562,7 @@ function renderExportOverlay(): void {
 
 required('new-project').addEventListener('click', () => {
   if (!confirm('現在の作業を閉じて新しいプロジェクトを作成しますか？ 自動保存済みの内容はブラウザーに残ります。')) return;
-  project = createProject(); selectedGroupId = project.groups[0].id; selectedPartId = null; currentSelections = {}; touch('新しいプロジェクトを作成しました。');
+  project = createProject(); selectedGroupId = project.groups[0].id; selectedPartId = null; currentSelections = {}; resetViewport(); touch('新しいプロジェクトを作成しました。');
 });
 required('load-project').addEventListener('click', () => projectInput.click());
 required('save-project').addEventListener('click', () => void saveProjectFile());
@@ -534,12 +582,78 @@ required('prev-combination').addEventListener('click', () => navigateCombination
 required('next-combination').addEventListener('click', () => navigateCombination(1));
 document.querySelectorAll<HTMLButtonElement>('[data-zoom]').forEach((control) => control.addEventListener('click', () => {
   const value = control.dataset.zoom;
-  if (value === 'fit' || value === 'actual') zoom = value;
-  else { const current = typeof zoom === 'number' ? zoom : 1; zoom = Math.min(4, Math.max(0.1, current * (value === 'in' ? 1.25 : 0.8))); }
-  document.querySelectorAll('[data-zoom]').forEach((item) => item.classList.toggle('active', item === control)); applyZoom();
+  if (value === 'fit' || value === 'actual') {
+    zoom = value;
+    resetPan();
+    applyZoom();
+  } else {
+    setNumericZoom(currentScale() * (value === 'in' ? 1.25 : 0.8));
+  }
 }));
+required('center-preview').addEventListener('click', () => {
+  resetPan();
+  applyZoom();
+  stage.focus();
+});
 document.addEventListener('click', (event) => {
   if (debugMenu.open && event.target instanceof Node && !debugMenu.contains(event.target)) debugMenu.open = false;
+});
+
+stage.addEventListener('pointerdown', (event) => {
+  if (event.button !== 0 || canvas.hidden || event.target instanceof HTMLButtonElement) return;
+  activePanPointerId = event.pointerId;
+  lastPanPointerX = event.clientX;
+  lastPanPointerY = event.clientY;
+  stage.setPointerCapture(event.pointerId);
+  stage.classList.add('panning');
+  event.preventDefault();
+});
+stage.addEventListener('pointermove', (event) => {
+  if (event.pointerId !== activePanPointerId) return;
+  panX += event.clientX - lastPanPointerX;
+  panY += event.clientY - lastPanPointerY;
+  lastPanPointerX = event.clientX;
+  lastPanPointerY = event.clientY;
+  applyZoom();
+});
+const endPan = (event: PointerEvent): void => {
+  if (event.pointerId !== activePanPointerId) return;
+  activePanPointerId = null;
+  stage.classList.remove('panning');
+  if (stage.hasPointerCapture(event.pointerId)) stage.releasePointerCapture(event.pointerId);
+};
+stage.addEventListener('pointerup', endPan);
+stage.addEventListener('pointercancel', endPan);
+stage.addEventListener('wheel', (event) => {
+  if (canvas.hidden) return;
+  event.preventDefault();
+  if (event.ctrlKey || event.metaKey) {
+    const rect = stage.getBoundingClientRect();
+    const focalX = event.clientX - rect.left - rect.width / 2;
+    const focalY = event.clientY - rect.top - rect.height / 2;
+    setNumericZoom(currentScale() * Math.exp(-event.deltaY * 0.002), focalX, focalY);
+    return;
+  }
+  if (event.shiftKey && event.deltaX === 0) panX -= event.deltaY;
+  else {
+    panX -= event.deltaX;
+    panY -= event.deltaY;
+  }
+  applyZoom();
+}, { passive: false });
+stage.addEventListener('keydown', (event) => {
+  if (canvas.hidden) return;
+  const panStep = event.shiftKey ? 120 : 40;
+  if (event.key === 'ArrowLeft') panX += panStep;
+  else if (event.key === 'ArrowRight') panX -= panStep;
+  else if (event.key === 'ArrowUp') panY += panStep;
+  else if (event.key === 'ArrowDown') panY -= panStep;
+  else if (event.key === '+' || event.key === '=') setNumericZoom(currentScale() * 1.25);
+  else if (event.key === '-') setNumericZoom(currentScale() * 0.8);
+  else if (event.key === '0') resetPan();
+  else return;
+  event.preventDefault();
+  applyZoom();
 });
 
 function navigateCombination(delta: number): void {
